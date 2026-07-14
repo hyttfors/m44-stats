@@ -9,6 +9,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         .stat-row:hover td { background-color: #f8fafc; }
         .group-header { background-color: #f1f5f9; color: #334155; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .tooltip-help { cursor: help; border-bottom: 1px dotted #9ca3af; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 p-4 md:p-8 min-h-screen relative">
@@ -130,7 +131,7 @@
             var content = document.getElementById('infoModalContent');
             document.getElementById('infoModalText').innerText = text;
             modal.classList.remove('hidden');
-            void modal.offsetWidth; // trigger layout reflow
+            void modal.offsetWidth; 
             modal.classList.remove('opacity-0');
             content.classList.remove('scale-95');
         };
@@ -282,7 +283,7 @@
                 DECK_ORDER.forEach(function(card) { dynamicDeckTotals[card.name] = card.base; });
                 
                 const getPlayer = function(name) {
-                    if (!players[name]) players[name] = { name: name, cardsPlayed: [], knownCards: [], unitsOrdered: 0, attacks: [], turns: [], rarityScore: 0, startingHandSize: 0, handSizeAdvantage: 0 };
+                    if (!players[name]) players[name] = { name: name, cardsPlayed: [], knownCards: [], unitsOrdered: 0, attacks: [], turns: [], rarityScore: 0, startingHandSize: 0, handSizeAdvantage: 0, lastTakenGround: null };
                     return players[name];
                 };
 
@@ -292,11 +293,12 @@
                 const p_draws = /^(.*?) draws (\d+) card\(s\)$/;
                 const p_play = /^(.*?) plays (.*)$/;
                 const p_orders = /^(.*?) issues orders to (.*)$/;
-                const p_attack = /^(.*?) attacks \d+ ([A-Za-z]+)/;
+                const p_attack = /^(.*?) attacks \d+ ([A-Za-z]+)(?: \([A-Za-z0-9]+\))?(?: with their \d+ ([A-Za-z]+) at ([A-Za-z0-9]+))?/;
                 const p_roll = /^(.*?) rolls (.*)$/;
                 const p_damage = /^(.*?)'s unit .* takes (\d+) damage\(s\)( because retreat is blocked)?$/;
                 const p_discard = /^(.*?) discards (.*)$/;
                 const p_medal = /^(Axis|Allies) scores \d+ medal\(s\)$/;
+                const p_take_ground = /^(.*?) takes ground in ([A-Za-z0-9]+)/;
 
                 for (let i = 0; i < events.length; i++) {
                     let line = events[i];
@@ -317,6 +319,7 @@
                         if (!getPlayer(pName).startingHandSize) {
                             getPlayer(pName).startingHandSize = num;
                         }
+                        getPlayer(pName).lastTakenGround = null;
                     }
                     else if (m = line.match(p_play)) {
                         lastActor = m[1];
@@ -326,6 +329,7 @@
                         p.cardsPlayed.push(normalized);
                         p.knownCards.push(normalized);
                         lastPlayedCard[lastActor] = cardStr.toLowerCase();
+                        p.lastTakenGround = null; // Clear context
                         
                         roundReveals.push({ player: lastActor, card: normalized, raw: cardStr, type: 'play' });
                         
@@ -345,11 +349,22 @@
                     }
                     else if (m = line.match(p_attack)) {
                         lastActor = m[1];
+                        let targetType = m[2];
+                        let attackerType = m[3] || 'Other';
+                        let attackerHex = m[4] || null;
+
                         currentAttack = {
-                            attacker: m[1], targetType: m[2], diceRolled: 0, diceDamage: 0, retreatDamage: 0, flags: 0,
-                            sym: { inf: 0, arm: 0, star: 0, flag: 0, gren: 0 }
+                            attacker: lastActor, targetType: targetType, attackerType: attackerType, attackerHex: attackerHex,
+                            diceRolled: 0, diceDamage: 0, retreatDamage: 0, flags: 0,
+                            sym: { inf: 0, arm: 0, star: 0, flag: 0, gren: 0 },
+                            isOverrun: false
                         };
-                        getPlayer(lastActor);
+
+                        let p = getPlayer(lastActor);
+                        if (attackerType === 'Armor' && p.lastTakenGround && attackerHex && p.lastTakenGround === attackerHex.toLowerCase()) {
+                            currentAttack.isOverrun = true;
+                        }
+                        p.lastTakenGround = null; // Consume it immediately
                     }
                     else if (m = line.match(p_roll)) {
                         if (currentAttack) {
@@ -366,11 +381,36 @@
                         }
                     }
                     else if (m = line.match(p_damage)) {
+                        let dmg = parseInt(m[2]);
                         if (currentAttack) {
-                            let dmg = parseInt(m[2]);
                             if (m[3]) currentAttack.retreatDamage += dmg;
                             else currentAttack.diceDamage += dmg;
+                        } else {
+                            // Intercept Standalone Scenario Damage (e.g., Minefields)
+                            let victim = m[1];
+                            let pKeys = Object.keys(players);
+                            let attacker = lastActor;
+                            if (attacker === victim && pKeys.length >= 2) {
+                                attacker = pKeys[0] === victim ? pKeys[1] : pKeys[0];
+                            }
+                            if (!attacker && pKeys.length >= 1) {
+                                attacker = pKeys[0] === victim ? (pKeys[1] || victim) : pKeys[0];
+                            }
+                            if (attacker) {
+                                let mockAttack = {
+                                    attacker: attacker, targetType: 'Unknown', attackerType: 'Other', attackerHex: null,
+                                    diceRolled: 0, diceDamage: dmg, retreatDamage: 0, flags: 0,
+                                    sym: { inf: 0, arm: 0, star: 0, flag: 0, gren: 0 },
+                                    isOverrun: false
+                                };
+                                getPlayer(attacker).attacks.push(mockAttack);
+                                let pTurns = getPlayer(attacker).turns;
+                                if (pTurns.length > 0) pTurns[pTurns.length - 1].attacks.push(mockAttack);
+                            }
                         }
+                    }
+                    else if (m = line.match(p_take_ground)) {
+                        getPlayer(m[1]).lastTakenGround = m[2].toLowerCase();
                     }
                     else if (m = line.match(p_medal)) {
                         if (lastActor) {
@@ -503,10 +543,44 @@
                 return max;
             };
 
-            let infAttacks = p.attacks.filter(function(a) { return a.targetType === 'Infantry'; });
-            let armAttacks = p.attacks.filter(function(a) { return a.targetType === 'Armor'; });
-            let artAttacks = p.attacks.filter(function(a) { return a.targetType === 'Artillery'; });
-            
+            let hitRatio1Plus = calcRatio(p.attacks, function(a) { return a.diceDamage >= 1; });
+            let singleDiceAtks = p.attacks.filter(function(a) { return a.diceRolled === 1; });
+            let singleDiceHit = calcRatio(singleDiceAtks, function(a) { return a.diceDamage >= 1; });
+
+            let infSrc = p.attacks.filter(function(a) { return a.attackerType === 'Infantry'; });
+            let armSrc = p.attacks.filter(function(a) { return a.attackerType === 'Armor'; });
+            let artSrc = p.attacks.filter(function(a) { return a.attackerType === 'Artillery'; });
+            let othSrc = p.attacks.filter(function(a) { return a.attackerType === 'Other'; });
+
+            let totalAtks = p.attacks.length;
+            let pctAtkInf = totalAtks ? (infSrc.length / totalAtks * 100) : 0;
+            let pctAtkArm = totalAtks ? (armSrc.length / totalAtks * 100) : 0;
+            let pctAtkArt = totalAtks ? (artSrc.length / totalAtks * 100) : 0;
+            let pctAtkOth = totalAtks ? (othSrc.length / totalAtks * 100) : 0;
+
+            let consistInf = calcRatio(infSrc, function(a) { return a.diceDamage >= 1; });
+            let consistArm = calcRatio(armSrc, function(a) { return a.diceDamage >= 1; });
+            let consistArt = calcRatio(artSrc, function(a) { return a.diceDamage >= 1; });
+            let consistOth = calcRatio(othSrc, function(a) { return (a.diceDamage + a.retreatDamage) >= 1; }); 
+
+            let sumDice = function(arr) { let d=0; for(let i=0;i<arr.length;i++) d+=arr[i].diceRolled; return d; };
+            let sumDmg = function(arr) { let d=0; for(let i=0;i<arr.length;i++) d+=(arr[i].diceDamage + arr[i].retreatDamage); return d; };
+
+            let totDiceAll = sumDice(p.attacks);
+            let pctDiceInf = totDiceAll ? (sumDice(infSrc) / totDiceAll * 100) : 0;
+            let pctDiceArm = totDiceAll ? (sumDice(armSrc) / totDiceAll * 100) : 0;
+            let pctDiceArt = totDiceAll ? (sumDice(artSrc) / totDiceAll * 100) : 0;
+            let pctDiceOth = totDiceAll ? (sumDice(othSrc) / totDiceAll * 100) : 0;
+
+            let totDmgAll = sumDmg(p.attacks);
+            let pctDmgInf = totDmgAll ? (sumDmg(infSrc) / totDmgAll * 100) : 0;
+            let pctDmgArm = totDmgAll ? (sumDmg(armSrc) / totDmgAll * 100) : 0;
+            let pctDmgArt = totDmgAll ? (sumDmg(artSrc) / totDmgAll * 100) : 0;
+            let pctDmgOth = totDmgAll ? (sumDmg(othSrc) / totDmgAll * 100) : 0;
+
+            let overruns = armSrc.filter(function(a) { return a.isOverrun; }).length;
+            let armorOverrunRatio = armSrc.length ? (overruns / armSrc.length * 100) : 0;
+
             let totalDice=0, totFlags=0, totStars=0, totInf=0, totGren=0;
             for(let i=0; i<p.attacks.length; i++) {
                 totalDice += p.attacks[i].diceRolled;
@@ -517,10 +591,14 @@
             }
 
             let armorVsArmorDice=0, armorVsArmorSym=0;
-            for(let i=0; i<armAttacks.length; i++) { armorVsArmorDice += armAttacks[i].diceRolled; armorVsArmorSym += armAttacks[i].sym.arm; }
+            let armVsArmAtks = p.attacks.filter(function(a) { return a.attackerType === 'Armor' && a.targetType === 'Armor'; });
+            // Wait, previous code just looked at targetType. The user requested: "% total armor dice against armor"
+            // I will use armVsArmAtks to precisely measure armor vs armor dice.
+            for(let i=0; i<armVsArmAtks.length; i++) { armorVsArmorDice += armVsArmAtks[i].diceRolled; armorVsArmorSym += armVsArmAtks[i].sym.arm; }
             
             let infVsInfDice=0, infVsInfSym=0;
-            for(let i=0; i<infAttacks.length; i++) { infVsInfDice += infAttacks[i].diceRolled; infVsInfSym += infAttacks[i].sym.inf; }
+            let infVsInfAtks = p.attacks.filter(function(a) { return a.attackerType === 'Infantry' && a.targetType === 'Infantry'; });
+            for(let i=0; i<infVsInfAtks.length; i++) { infVsInfDice += infVsInfAtks[i].diceRolled; infVsInfSym += infVsInfAtks[i].sym.inf; }
 
             let blankTurnsCount = 0;
             for(let i=0; i<p.turns.length; i++) {
@@ -551,12 +629,21 @@
             let total = p.cardsPlayed.length;
 
             return {
-                uhrInf: calcRatio(infAttacks, function(a) { return a.diceDamage >= 1; }),
-                uhrArm: calcRatio(armAttacks, function(a) { return a.diceDamage >= 1; }),
-                uhrArt: calcRatio(artAttacks, function(a) { return a.diceDamage >= 1; }),
-                hrInf: calcHitRatio(infAttacks),
-                hrArm: calcHitRatio(armAttacks),
-                hrArt: calcHitRatio(artAttacks),
+                hitRatio1Plus: hitRatio1Plus,
+                singleDiceHit: singleDiceHit,
+                uhrInf: calcRatio(p.attacks.filter(function(a){return a.targetType==='Infantry';}), function(a) { return a.diceDamage >= 1; }),
+                uhrArm: calcRatio(p.attacks.filter(function(a){return a.targetType==='Armor';}), function(a) { return a.diceDamage >= 1; }),
+                uhrArt: calcRatio(p.attacks.filter(function(a){return a.targetType==='Artillery';}), function(a) { return a.diceDamage >= 1; }),
+                hrInf: calcHitRatio(p.attacks.filter(function(a){return a.targetType==='Infantry';})),
+                hrArm: calcHitRatio(p.attacks.filter(function(a){return a.targetType==='Armor';})),
+                hrArt: calcHitRatio(p.attacks.filter(function(a){return a.targetType==='Artillery';})),
+                
+                pctAtkInf: pctAtkInf, pctAtkArm: pctAtkArm, pctAtkArt: pctAtkArt, pctAtkOth: pctAtkOth,
+                consistInf: consistInf, consistArm: consistArm, consistArt: consistArt, consistOth: consistOth,
+                pctDiceInf: pctDiceInf, pctDiceArm: pctDiceArm, pctDiceArt: pctDiceArt, pctDiceOth: pctDiceOth,
+                pctDmgInf: pctDmgInf, pctDmgArm: pctDmgArm, pctDmgArt: pctDmgArt, pctDmgOth: pctDmgOth,
+                armorOverrunRatio: armorOverrunRatio,
+
                 pctFlagDice: totalDice ? (totFlags / totalDice * 100) : 0,
                 pctStarDice: totalDice ? (totStars / totalDice * 100) : 0,
                 pctInfDice: totalDice ? (totInf / totalDice * 100) : 0,
@@ -738,6 +825,8 @@
 
             let html = '';
             html += addHeader('Core Combat Effectiveness');
+            html += addRow('Hit Ratio (≥1 Dice Dmg)', s1.hitRatio1Plus, s2.hitRatio1Plus, true, false);
+            html += addRow('Single Dice Hit Ratio (1 Die Rolled)', s1.singleDiceHit, s2.singleDiceHit, true, false);
             html += addRow('Unit Hit Ratio (vs Infantry)', s1.uhrInf, s2.uhrInf, true, false);
             html += addRow('Unit Hit Ratio (vs Armor)', s1.uhrArm, s2.uhrArm, true, false);
             html += addRow('Unit Hit Ratio (vs Artillery)', s1.uhrArt, s2.uhrArt, true, false);
@@ -745,6 +834,29 @@
             html += addRow('Hits Ratio (vs Armor)', s1.hrArm, s2.hrArm, true, false);
             html += addRow('Hits Ratio (vs Artillery)', s1.hrArt, s2.hrArt, true, false);
             
+            html += addHeader('Attack Source Breakdown');
+            html += addRow('% Total Attacks made by Infantry', s1.pctAtkInf, s2.pctAtkInf, true, false);
+            html += addRow('% Total Attacks made by Armor', s1.pctAtkArm, s2.pctAtkArm, true, false);
+            html += addRow('% Total Attacks made by Artillery', s1.pctAtkArt, s2.pctAtkArt, true, false);
+            html += addRow('% Total Attacks made by Other (Air Power, Barrage, etc.)', s1.pctAtkOth, s2.pctAtkOth, true, false);
+            
+            html += addRow('Hit Consistency (≥1 Dmg) - Infantry', s1.consistInf, s2.consistInf, true, false);
+            html += addRow('Hit Consistency (≥1 Dmg) - Armor', s1.consistArm, s2.consistArm, true, false);
+            html += addRow('Hit Consistency (≥1 Dmg) - Artillery', s1.consistArt, s2.consistArt, true, false);
+            html += addRow('Hit Consistency (≥1 Dmg) - Other', s1.consistOth, s2.consistOth, true, false);
+            
+            html += addRow('% Total Dice Rolled by Infantry', s1.pctDiceInf, s2.pctDiceInf, true, false);
+            html += addRow('% Total Dice Rolled by Armor', s1.pctDiceArm, s2.pctDiceArm, true, false);
+            html += addRow('% Total Dice Rolled by Artillery', s1.pctDiceArt, s2.pctDiceArt, true, false);
+            html += addRow('% Total Dice Rolled by Other', s1.pctDiceOth, s2.pctDiceOth, true, false);
+
+            html += addRow('% Total Damage Dealt by Infantry', s1.pctDmgInf, s2.pctDmgInf, true, false);
+            html += addRow('% Total Damage Dealt by Armor', s1.pctDmgArm, s2.pctDmgArm, true, false);
+            html += addRow('% Total Damage Dealt by Artillery', s1.pctDmgArt, s2.pctDmgArt, true, false);
+            html += addRow('% Total Damage Dealt by Other', s1.pctDmgOth, s2.pctDmgOth, true, false);
+
+            html += addRow('Armor Overrun Ratio (% of Armor attacks)', s1.armorOverrunRatio, s2.armorOverrunRatio, true, false);
+
             html += addHeader('Dice & Symbol Analysis');
             html += addRow('% Total Infantry Dice Rolled', s1.pctInfDice, s2.pctInfDice, true, false);
             html += addRow('% Total Grenade Dice Rolled', s1.pctGrenDice, s2.pctGrenDice, true, false);
@@ -773,9 +885,9 @@
             html += addHeader('Efficiency & Play Style');
             html += addRow('Total Units Ordered', s1.totalUnits, s2.totalUnits, false, false);
             html += addRow('Avg Orders / Card Played', s1.avgUnitsPerCard, s2.avgUnitsPerCard, false, false);
+            html += addRow('% Tactics Cards Played', s1.cards.pctTac, s2.cards.pctTac, true, false);
             html += addRow('% Section Cards Played', s1.cards.pctSec, s2.cards.pctSec, true, false);
             html += addRow('% Multi-Section Cards Played', s1.cards.pctMulti, s2.cards.pctMulti, true, false);
-            html += addRow('% Tactics Cards Played', s1.cards.pctTac, s2.cards.pctTac, true, false);
             html += addRow('↳ Section Cards on Left Flank', s1.cards.pctLeft, s2.cards.pctLeft, true, false);
             html += addRow('↳ Section Cards in Center', s1.cards.pctCenter, s2.cards.pctCenter, true, false);
             html += addRow('↳ Section Cards on Right Flank', s1.cards.pctRight, s2.cards.pctRight, true, false);
@@ -893,12 +1005,12 @@
                     '<td class="whitespace-nowrap py-2 px-2 text-sm font-medium">#' + (i + 1) + '</td>' +
                     '<td class="whitespace-nowrap py-2 px-2 text-sm font-bold ' + colorClass + '">' + t.player + '</td>' +
                     '<td class="whitespace-nowrap py-2 px-2 text-sm">' + t.card + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold">' + tDice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200">' + tDice + '</td>' +
                     '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold ' + dmgColor + '">' + tDmg + '</td>' +
                     '<td class="whitespace-nowrap py-2 px-2 text-sm text-center">' + tRatio + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200 bg-gray-50/50">' + cumulativeStats[pNameStr].dice + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold bg-gray-50/50 ' + cDmgColor + '">' + cumulativeStats[pNameStr].dmg + '</td>' +
-                    '<td class="whitespace-nowrap py-2 pr-4 text-sm text-center bg-gray-50/50">' + cRatio + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200 bg-gray-50/50 text-gray-500">' + cumulativeStats[pNameStr].dice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold bg-gray-50/50 text-gray-500 ' + cDmgColor + '">' + cumulativeStats[pNameStr].dmg + '</td>' +
+                    '<td class="whitespace-nowrap py-2 pr-4 text-sm text-center bg-gray-50/50 text-gray-500">' + cRatio + '</td>' +
                 '</tr>';
             }
             document.getElementById('turnLogBody').innerHTML = turnHtml;
