@@ -7,118 +7,119 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .stat-row:hover td { background-color: #f8fafc; }
-        .group-header { background-color: #f1f5f9; color: #334155; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
-        .tooltip-help { cursor: help; border-bottom: 1px dotted #9ca3af; }
+        .stat-row:hover td { background-color: #e7e5df; }
+        .group-header { background-color: #d6d3c4; color: #292524; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-top: 2px solid #a8a29e; border-bottom: 2px solid #a8a29e; }
+        .tooltip-help { cursor: help; border-bottom: 1px dotted #78716c; }
+        .military-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2); }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4 md:p-8 min-h-screen relative">
+<body class="bg-stone-300 text-stone-800 p-4 md:p-8 min-h-screen relative">
     
     <!-- Mobile-Friendly Tooltip Modal -->
-    <div id="infoModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 hidden opacity-0 transition-opacity duration-200" onclick="closeInfo()">
-        <div class="bg-white p-6 rounded-xl max-w-sm mx-4 shadow-2xl transform transition-transform scale-95" id="infoModalContent" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center mb-3">
-                <h4 class="font-bold text-lg text-blue-900">Metric Info</h4>
-                <button onclick="closeInfo()" class="text-gray-400 hover:text-gray-600 font-bold text-2xl leading-none">&times;</button>
+    <div id="infoModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900 bg-opacity-60 hidden opacity-0 transition-opacity duration-200" onclick="closeInfo()">
+        <div class="bg-[#f4f4f0] p-6 rounded-lg border-2 border-stone-400 max-w-sm mx-4 military-shadow transform transition-transform scale-95" id="infoModalContent" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-3 border-b border-stone-300 pb-2">
+                <h4 class="font-bold text-lg text-stone-800 uppercase tracking-wide">Metric Info</h4>
+                <button onclick="closeInfo()" class="text-stone-500 hover:text-stone-800 font-bold text-2xl leading-none">&times;</button>
             </div>
-            <p id="infoModalText" class="text-sm text-gray-700 leading-relaxed"></p>
-            <button class="mt-6 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors" onclick="closeInfo()">Got it</button>
+            <p id="infoModalText" class="text-sm text-stone-700 leading-relaxed"></p>
+            <button class="mt-6 w-full py-2.5 bg-stone-300 hover:bg-stone-400 text-stone-800 font-bold uppercase tracking-wider rounded transition-colors border border-stone-400" onclick="closeInfo()">Dismiss</button>
         </div>
     </div>
 
-    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
-        <h1 class="text-3xl font-bold mb-2 text-blue-900">Memoir '44 Log Analyzer</h1>
-        <p class="text-gray-600 mb-6">Paste your Board Game Arena game log below. Automatically detects and splits multiple rounds.</p>
+    <div class="max-w-6xl mx-auto bg-[#f4f4f0] rounded-sm military-shadow border border-stone-300 p-6 md:p-8">
+        <h1 class="text-3xl font-black mb-1 text-[#3a3f38] uppercase tracking-widest border-b-4 border-[#4a5320] pb-2 inline-block">Memoir '44 Log Analyzer</h1>
+        <p class="text-stone-600 mb-6 mt-3 italic">Paste your Board Game Arena game log below (Select 'View Game Replay' after game has ended - Select All and Copy). Automatically detects and splits multiple rounds.</p>
         
-        <textarea id="logInput" class="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y mb-4 font-mono text-sm shadow-inner" placeholder="Paste game log here..."></textarea>
+        <textarea id="logInput" class="w-full h-48 p-4 border-2 border-stone-300 bg-[#fdfdfc] rounded focus:border-[#4a5320] focus:ring-0 focus:outline-none resize-y mb-4 font-mono text-sm shadow-inner" placeholder="Paste game log here..."></textarea>
         
-        <button onclick="processLog()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md">
-            Generate Statistics
+        <button onclick="processLog()" class="bg-[#4a5320] hover:bg-[#3e451b] text-[#f4f4f0] font-bold py-2.5 px-8 rounded shadow-md uppercase tracking-wider border border-[#2d3313] transition-colors">
+            Generate Report
         </button>
 
-        <div id="results" class="mt-8 hidden">
+        <div id="results" class="mt-10 hidden">
             
             <!-- Match Summary Header -->
-            <div id="matchSummary" class="mb-6 bg-blue-50 p-5 rounded-lg border border-blue-100">
-                <h3 class="text-2xl font-bold text-blue-900 mb-3" id="matchWinnerText"></h3>
-                <div id="roundSummaries" class="text-sm text-gray-700 space-y-1">
+            <div id="matchSummary" class="mb-8 bg-[#e6e4dc] p-5 rounded border-l-4 border-[#4a5320] shadow-sm">
+                <h3 class="text-2xl font-black text-[#292524] mb-3 uppercase tracking-wide" id="matchWinnerText"></h3>
+                <div id="roundSummaries" class="text-sm text-stone-800 space-y-1">
                     <!-- Dynamic round factions & hand sizes injected here -->
                 </div>
             </div>
 
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 mb-6 gap-4">
-                <h2 class="text-2xl font-bold text-gray-800">Match Statistics</h2>
-                <div id="roundSelector" class="hidden flex bg-gray-200 p-1 rounded-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-stone-300 pb-4 mb-6 gap-4">
+                <h2 class="text-2xl font-black text-stone-800 uppercase tracking-widest">Match Statistics</h2>
+                <div id="roundSelector" class="hidden flex bg-stone-300 p-1 rounded">
                     <!-- Dynamic Round Buttons injected here -->
                 </div>
             </div>
 
             <!-- Stats Table -->
-            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg mb-10">
-                <table class="min-w-full divide-y divide-gray-300">
-                    <thead class="bg-gray-800">
+            <div class="overflow-x-auto shadow-md ring-1 ring-stone-400 mb-10 rounded-sm">
+                <table class="min-w-full divide-y divide-stone-400 border-collapse">
+                    <thead class="bg-[#3a3f38]">
                         <tr>
-                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-white sm:pl-6 w-1/4">Statistic</th>
-                            <th scope="col" id="p1Name" class="px-3 py-3.5 text-left text-sm font-bold text-blue-300 w-1/4">Player 1</th>
-                            <th scope="col" id="p2Name" class="px-3 py-3.5 text-left text-sm font-bold text-red-300 w-1/4">Player 2</th>
-                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-white w-1/4">Difference</th>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-bold text-stone-100 sm:pl-6 w-1/4 uppercase tracking-wide">Statistic</th>
+                            <th scope="col" id="p1Name" class="px-3 py-3.5 text-left text-sm font-black text-sky-400 w-1/4 uppercase tracking-wide">Player 1</th>
+                            <th scope="col" id="p2Name" class="px-3 py-3.5 text-left text-sm font-black text-rose-400 w-1/4 uppercase tracking-wide">Player 2</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-bold text-stone-100 w-1/4 uppercase tracking-wide">Difference</th>
                         </tr>
                     </thead>
-                    <tbody id="statsBody" class="divide-y divide-gray-200 bg-white">
+                    <tbody id="statsBody" class="divide-y divide-stone-200 bg-[#fdfdfc]">
                         <!-- Stats injected here -->
                     </tbody>
                 </table>
             </div>
 
             <!-- Deck Table -->
-            <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Deck Inventory</h2>
-            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg mb-10">
-                <table class="min-w-full divide-y divide-gray-300">
-                    <thead class="bg-gray-800 text-white">
+            <h2 class="text-2xl font-black mb-4 text-stone-800 border-b-2 border-stone-300 pb-2 uppercase tracking-widest">Deck Inventory</h2>
+            <div class="overflow-x-auto shadow-md ring-1 ring-stone-400 mb-10 rounded-sm">
+                <table class="min-w-full divide-y divide-stone-400 border-collapse">
+                    <thead class="bg-[#3a3f38] text-stone-100">
                         <tr>
-                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold sm:pl-6">Card Name</th>
-                            <th scope="col" class="px-3 py-3.5 text-center text-sm font-semibold">
-                                Total Available <span title="Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck." onclick="showInfo('Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck.')" class="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold text-white bg-gray-500 rounded-full cursor-pointer hover:bg-gray-400 transition-colors">?</span>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-bold uppercase tracking-wide sm:pl-6">Card Name</th>
+                            <th scope="col" class="px-3 py-3.5 text-center text-sm font-bold uppercase tracking-wide">
+                                Total Available <span title="Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck." onclick="showInfo('Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck.')" class="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold text-white bg-stone-500 rounded-full cursor-pointer hover:bg-stone-400 transition-colors">?</span>
                             </th>
-                            <th scope="col" id="deckP1Name" class="px-3 py-3.5 text-center text-sm font-semibold text-blue-300">Received by P1</th>
-                            <th scope="col" id="deckP2Name" class="px-3 py-3.5 text-center text-sm font-semibold text-red-300">Received by P2</th>
+                            <th scope="col" id="deckP1Name" class="px-3 py-3.5 text-center text-sm font-black text-sky-400 uppercase tracking-wide">Received by P1</th>
+                            <th scope="col" id="deckP2Name" class="px-3 py-3.5 text-center text-sm font-black text-rose-400 uppercase tracking-wide">Received by P2</th>
                         </tr>
                     </thead>
-                    <tbody id="deckBody" class="divide-y divide-gray-200">
+                    <tbody id="deckBody" class="divide-y divide-stone-200 bg-[#fdfdfc]">
                         <!-- Deck injected here -->
                     </tbody>
-                    <tfoot id="deckFooter" class="bg-gray-100 font-bold border-t-2 border-gray-300">
+                    <tfoot id="deckFooter" class="bg-stone-200 font-bold border-t-2 border-stone-400">
                         <!-- Deck totals injected here -->
                     </tfoot>
                 </table>
             </div>
 
             <!-- Turn Breakdown -->
-            <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Turn-by-Turn Breakdown</h2>
-            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                <table class="min-w-full divide-y divide-gray-300">
-                    <thead class="bg-gray-800 text-white">
+            <h2 class="text-2xl font-black mb-4 text-stone-800 border-b-2 border-stone-300 pb-2 uppercase tracking-widest">Turn-by-Turn Breakdown</h2>
+            <div class="overflow-x-auto shadow-md ring-1 ring-stone-400 rounded-sm">
+                <table class="min-w-full divide-y divide-stone-400 border-collapse">
+                    <thead class="bg-[#3a3f38] text-stone-100">
                         <tr>
-                            <th scope="col" class="py-3 pl-4 text-left text-sm font-semibold">Rnd</th>
-                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Turn</th>
-                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Player</th>
-                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Card Played</th>
-                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold border-l border-gray-600">Dice Rolled</th>
-                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold">Damage</th>
-                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold">Hit Ratio</th>
-                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold border-l border-gray-600 text-gray-300">Total Dice</th>
-                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold text-gray-300">Total Damage</th>
-                            <th scope="col" class="py-3 pr-4 text-center text-sm font-semibold text-gray-300">Total Hit Ratio</th>
+                            <th scope="col" class="py-3 pl-4 text-left text-xs font-bold uppercase tracking-wide">Rnd</th>
+                            <th scope="col" class="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide">Turn</th>
+                            <th scope="col" class="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide">Player</th>
+                            <th scope="col" class="py-3 px-2 text-left text-xs font-bold uppercase tracking-wide">Card Played</th>
+                            <th scope="col" class="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide border-l border-stone-500">Dice Rolled</th>
+                            <th scope="col" class="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide">Damage</th>
+                            <th scope="col" class="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide">Hit Ratio</th>
+                            <th scope="col" class="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide border-l border-stone-500 text-stone-300">Total Dice</th>
+                            <th scope="col" class="py-3 px-2 text-center text-xs font-bold uppercase tracking-wide text-stone-300">Total Dmg</th>
+                            <th scope="col" class="py-3 pr-4 text-center text-xs font-bold uppercase tracking-wide text-stone-300">Total Hit Ratio</th>
                         </tr>
                     </thead>
-                    <tbody id="turnLogBody" class="divide-y divide-gray-200 bg-white">
+                    <tbody id="turnLogBody" class="divide-y divide-stone-200 bg-[#fdfdfc]">
                         <!-- Turn log injected here -->
                     </tbody>
                 </table>
             </div>
             
-            <div id="unknownCards" class="mt-4 p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg hidden text-sm">
-                <strong>Note:</strong> Some discarded cards lacked specific section data. These are accounted for in total cards played but couldn't be strictly placed: 
+            <div id="unknownCards" class="mt-6 p-4 bg-[#e6e4dc] text-stone-800 border-l-4 border-amber-600 rounded-sm shadow-sm hidden text-sm">
+                <strong>HQ NOTE:</strong> Some discarded cards lacked specific section data. These are accounted for in total cards played but couldn't be strictly placed: 
                 <span id="unknownCardsList"></span>
             </div>
         </div>
@@ -147,7 +148,7 @@
 
         const getTooltipIcon = function(text) {
             let safeText = text.replace(/'/g, "\\'");
-            return '<span title="' + safeText + '" onclick="showInfo(\'' + safeText + '\')" class="inline-flex items-center justify-center w-4 h-4 ml-1.5 text-[10px] font-bold text-white bg-blue-500 rounded-full cursor-pointer hover:bg-blue-700 transition-colors">?</span>';
+            return '<span title="' + safeText + '" onclick="showInfo(\'' + safeText + '\')" class="inline-flex items-center justify-center w-4 h-4 ml-1.5 text-[10px] font-bold text-[#f4f4f0] bg-[#5c662e] rounded-full cursor-pointer hover:bg-[#4a5320] transition-colors">?</span>';
         };
 
         const DECK_ORDER = [
@@ -329,7 +330,7 @@
                         p.cardsPlayed.push(normalized);
                         p.knownCards.push(normalized);
                         lastPlayedCard[lastActor] = cardStr.toLowerCase();
-                        p.lastTakenGround = null; // Clear context
+                        p.lastTakenGround = null; 
                         
                         roundReveals.push({ player: lastActor, card: normalized, raw: cardStr, type: 'play' });
                         
@@ -364,7 +365,7 @@
                         if (attackerType === 'Armor' && p.lastTakenGround && attackerHex && p.lastTakenGround === attackerHex.toLowerCase()) {
                             currentAttack.isOverrun = true;
                         }
-                        p.lastTakenGround = null; // Consume it immediately
+                        p.lastTakenGround = null; 
                     }
                     else if (m = line.match(p_roll)) {
                         if (currentAttack) {
@@ -386,7 +387,6 @@
                             if (m[3]) currentAttack.retreatDamage += dmg;
                             else currentAttack.diceDamage += dmg;
                         } else {
-                            // Intercept Standalone Scenario Damage (e.g., Minefields)
                             let victim = m[1];
                             let pKeys = Object.keys(players);
                             let attacker = lastActor;
@@ -592,8 +592,6 @@
 
             let armorVsArmorDice=0, armorVsArmorSym=0;
             let armVsArmAtks = p.attacks.filter(function(a) { return a.attackerType === 'Armor' && a.targetType === 'Armor'; });
-            // Wait, previous code just looked at targetType. The user requested: "% total armor dice against armor"
-            // I will use armVsArmAtks to precisely measure armor vs armor dice.
             for(let i=0; i<armVsArmAtks.length; i++) { armorVsArmorDice += armVsArmAtks[i].diceRolled; armorVsArmorSym += armVsArmAtks[i].sym.arm; }
             
             let infVsInfDice=0, infVsInfSym=0;
@@ -706,9 +704,9 @@
                     let p2Hand = r.players[allPlayerNames[1]] ? (r.players[allPlayerNames[1]].startingHandSize || '?') : '?';
                     let rWinner = m1 > m2 ? allPlayerNames[0] : (m2 > m1 ? allPlayerNames[1] : "Tie");
                     
-                    summaryHtml += '<p class="mt-2"><strong class="text-blue-800">Round ' + (i+1) + ':</strong> ' + 
+                    summaryHtml += '<p class="mt-2 text-stone-800"><strong class="text-[#3a3f38] uppercase">Round ' + (i+1) + ':</strong> ' + 
                         allPlayerNames[0] + ' (' + p1Fac + ', ' + p1Hand + ' cards) vs ' + 
-                        allPlayerNames[1] + ' (' + p2Fac + ', ' + p2Hand + ' cards) &nbsp;|&nbsp; <strong>Winner:</strong> ' + rWinner + '</p>';
+                        allPlayerNames[1] + ' (' + p2Fac + ', ' + p2Hand + ' cards) &nbsp;|&nbsp; <strong class="uppercase text-[#4a5320]">Winner:</strong> ' + rWinner + '</p>';
                 }
                 
                 let mWinner = p1TotalMedals > p2TotalMedals ? allPlayerNames[0] : (p2TotalMedals > p1TotalMedals ? allPlayerNames[1] : "Tie");
@@ -716,9 +714,9 @@
                 document.getElementById('matchWinnerText').innerText = 'Match Winner: ' + mWinner + ' (' + mScore + ')';
                 document.getElementById('roundSummaries').innerHTML = summaryHtml;
 
-                let selectorHtml = '<button onclick="renderView(-1)" id="btn-view--1" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-white shadow text-gray-800 transition">Total</button>';
+                let selectorHtml = '<button onclick="renderView(-1)" id="btn-view--1" class="px-5 py-2 text-sm font-bold rounded shadow-sm text-stone-800 transition-colors uppercase border border-stone-400 tracking-wide">Total</button>';
                 for(let i=0; i<parsedRounds.length; i++) {
-                    selectorHtml += '<button onclick="renderView(' + i + ')" id="btn-view-' + i + '" class="px-4 py-1.5 text-sm font-semibold rounded-md text-gray-600 hover:text-gray-800 transition ml-2">Round ' + (i+1) + '</button>';
+                    selectorHtml += '<button onclick="renderView(' + i + ')" id="btn-view-' + i + '" class="px-5 py-2 text-sm font-bold rounded text-stone-600 hover:text-stone-800 transition-colors ml-2 uppercase border border-transparent tracking-wide">Round ' + (i+1) + '</button>';
                 }
                 
                 if (parsedRounds.length > 1) {
@@ -744,10 +742,10 @@
                     let btn = buttons[i];
                     let btnIdx = parseInt(btn.id.replace('btn-view-', ''));
                     if (btnIdx === roundIndex) {
-                        btn.className = "px-4 py-1.5 text-sm font-semibold rounded-md bg-white shadow text-gray-800 transition ml-2";
+                        btn.className = "px-5 py-2 text-sm font-bold rounded bg-[#fdfdfc] shadow-sm text-stone-800 transition-colors ml-2 uppercase border border-stone-400 tracking-wide";
                         if(btnIdx === -1) btn.classList.remove('ml-2');
                     } else {
-                        btn.className = "px-4 py-1.5 text-sm font-semibold rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition ml-2";
+                        btn.className = "px-5 py-2 text-sm font-bold rounded text-stone-600 hover:text-stone-800 hover:bg-stone-400/50 transition-colors ml-2 uppercase border border-transparent tracking-wide";
                         if(btnIdx === -1) btn.classList.remove('ml-2');
                     }
                 }
@@ -802,24 +800,24 @@
 
             const getDiff = function(v1, v2, isPct, isDelta) {
                 let diff = Math.abs(v1 - v2);
-                if (diff < 0.05) return '<span class="text-gray-400 font-normal">Equal</span>';
+                if (diff < 0.05) return '<span class="text-stone-400 font-normal">Equal</span>';
                 let leader = v1 > v2 ? 'P1' : 'P2';
-                let color = leader === 'P1' ? 'text-blue-600' : 'text-red-600';
+                let color = leader === 'P1' ? 'text-sky-700' : 'text-rose-700';
                 let formattedDiff = isPct ? formatP(diff) : formatN(diff);
-                return '<span class="font-medium ' + color + '">' + leader + ' +' + formattedDiff + '</span>';
+                return '<span class="font-bold ' + color + '">' + leader + ' +' + formattedDiff + '</span>';
             };
 
             const addHeader = function(title) {
-                return '<tr><td colspan="4" class="group-header py-2 px-4 border-b border-gray-200">' + title + '</td></tr>';
+                return '<tr><td colspan="4" class="group-header py-2.5 px-4">' + title + '</td></tr>';
             };
             const addRow = function(label, v1, v2, isPct, isDelta) {
                 let val1 = isDelta ? formatDelta(v1) : (isPct ? formatP(v1) : formatN(v1));
                 let val2 = isDelta ? formatDelta(v2) : (isPct ? formatP(v2) : formatN(v2));
-                return '<tr class="stat-row bg-white transition-colors">' +
-                    '<td class="whitespace-nowrap py-2.5 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 border-b border-gray-100">' + label + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-gray-700 border-b border-gray-100">' + val1 + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-gray-700 border-b border-gray-100">' + val2 + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm border-b border-gray-100">' + getDiff(v1, v2, isPct, isDelta) + '</td>' +
+                return '<tr class="stat-row border-b border-stone-200 transition-colors">' +
+                    '<td class="whitespace-nowrap py-2.5 pl-4 pr-3 text-sm font-medium text-stone-900 sm:pl-6">' + label + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-stone-700">' + val1 + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-stone-700">' + val2 + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm">' + getDiff(v1, v2, isPct, isDelta) + '</td>' +
                 '</tr>';
             };
 
@@ -886,8 +884,8 @@
             html += addRow('Total Units Ordered', s1.totalUnits, s2.totalUnits, false, false);
             html += addRow('Avg Orders / Card Played', s1.avgUnitsPerCard, s2.avgUnitsPerCard, false, false);
             html += addRow('% Tactics Cards Played', s1.cards.pctTac, s2.cards.pctTac, true, false);
-            html += addRow('% Section Cards Played', s1.cards.pctSec, s2.cards.pctSec, true, false);
             html += addRow('% Multi-Section Cards Played', s1.cards.pctMulti, s2.cards.pctMulti, true, false);
+            html += addRow('% Section Cards Played', s1.cards.pctSec, s2.cards.pctSec, true, false);
             html += addRow('↳ Section Cards on Left Flank', s1.cards.pctLeft, s2.cards.pctLeft, true, false);
             html += addRow('↳ Section Cards in Center', s1.cards.pctCenter, s2.cards.pctCenter, true, false);
             html += addRow('↳ Section Cards on Right Flank', s1.cards.pctRight, s2.cards.pctRight, true, false);
@@ -915,15 +913,15 @@
                 if (card.type === "Section") { tSec1 += c1; tSec2 += c2; tTotalAvailableSec += max; } 
                 else { tTac1 += c1; tTac2 += c2; tTotalAvailableTac += max; }
 
-                let bgClass = card.type === "Section" ? "bg-green-50" : "bg-gray-50";
-                let font1 = c1 > 0 ? 'text-blue-700 font-bold' : 'text-gray-400';
-                let font2 = c2 > 0 ? 'text-red-700 font-bold' : 'text-gray-400';
+                let bgClass = card.type === "Section" ? "bg-[#ebede3]" : "bg-[#f4f4f0]";
+                let font1 = c1 > 0 ? 'text-sky-800 font-bold' : 'text-stone-400';
+                let font2 = c2 > 0 ? 'text-rose-800 font-bold' : 'text-stone-400';
 
-                deckHtml += '<tr class="stat-row ' + bgClass + '">' +
-                    '<td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm font-medium text-gray-900 border-b border-gray-200/50 sm:pl-6">' + card.name + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2 text-sm text-gray-600 text-center font-semibold border-b border-gray-200/50">' + max + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font1 + ' text-center border-b border-gray-200/50">' + (c1 || '-') + '</td>' +
-                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font2 + ' text-center border-b border-gray-200/50">' + (c2 || '-') + '</td>' +
+                deckHtml += '<tr class="stat-row border-b border-stone-300/50 ' + bgClass + '">' +
+                    '<td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm font-medium text-stone-900 sm:pl-6">' + card.name + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm text-stone-700 text-center font-bold">' + max + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font1 + ' text-center">' + (c1 || '-') + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font2 + ' text-center">' + (c2 || '-') + '</td>' +
                 '</tr>';
             }
             document.getElementById('deckBody').innerHTML = deckHtml;
@@ -933,22 +931,22 @@
             
             document.getElementById('deckFooter').innerHTML = 
                 '<tr>' +
-                    '<td class="py-3 pl-4 pr-3 text-sm text-gray-700 sm:pl-6 text-right border-r border-gray-300">Total Section Cards Played:</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-gray-600">' + tTotalAvailableSec + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-blue-700">' + tSec1 + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-red-700">' + tSec2 + '</td>' +
+                    '<td class="py-3 pl-4 pr-3 text-sm text-stone-700 sm:pl-6 text-right border-r border-stone-400 uppercase tracking-wide">Total Section Cards Played:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-stone-800">' + tTotalAvailableSec + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-sky-800">' + tSec1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-rose-800">' + tSec2 + '</td>' +
                 '</tr>' +
                 '<tr>' +
-                    '<td class="py-3 pl-4 pr-3 text-sm text-gray-700 sm:pl-6 text-right border-r border-gray-300">Total Tactic Cards Played:</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-gray-600">' + tTotalAvailableTac + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-blue-700">' + tTac1 + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-red-700">' + tTac2 + '</td>' +
+                    '<td class="py-3 pl-4 pr-3 text-sm text-stone-700 sm:pl-6 text-right border-r border-stone-400 uppercase tracking-wide">Total Tactic Cards Played:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-stone-800">' + tTotalAvailableTac + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-sky-800">' + tTac1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-rose-800">' + tTac2 + '</td>' +
                 '</tr>' +
-                '<tr class="bg-gray-200 text-gray-900 border-t-2 border-gray-300">' +
-                    '<td class="py-3 pl-4 pr-3 text-sm sm:pl-6 text-right font-bold uppercase border-r border-gray-300">Total Cards:</td>' +
-                    '<td class="px-3 py-3 text-center text-sm">' + tTotalAvailableDeck + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-blue-800">' + tTotal1 + '</td>' +
-                    '<td class="px-3 py-3 text-center text-sm text-red-800">' + tTotal2 + '</td>' +
+                '<tr class="bg-stone-300 text-stone-900 border-t-2 border-stone-400">' +
+                    '<td class="py-3 pl-4 pr-3 text-sm sm:pl-6 text-right font-black uppercase border-r border-stone-400 tracking-widest">Total Cards:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm font-bold">' + tTotalAvailableDeck + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm font-black text-sky-900">' + tTotal1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm font-black text-rose-900">' + tTotal2 + '</td>' +
                 '</tr>';
 
             let keys1 = Object.keys(countMap1);
@@ -982,7 +980,7 @@
                 let pNameStr = t.player;
                 if (!cumulativeStats[pNameStr]) { cumulativeStats[pNameStr] = { dice: 0, dmg: 0 }; }
                 
-                let colorClass = t.player === p1Data.name ? 'text-blue-700' : (t.player === p2Data.name ? 'text-red-700' : 'text-gray-700');
+                let colorClass = t.player === p1Data.name ? 'text-sky-700' : (t.player === p2Data.name ? 'text-rose-700' : 'text-stone-700');
                 
                 let tDice = 0; let tDmg = 0;
                 for(let j=0; j<t.attacks.length; j++) {
@@ -996,21 +994,21 @@
                 let tRatio = tDice > 0 ? ((tDmg / tDice) * 100).toFixed(0) + '%' : '-';
                 let cRatio = cumulativeStats[pNameStr].dice > 0 ? ((cumulativeStats[pNameStr].dmg / cumulativeStats[pNameStr].dice) * 100).toFixed(0) + '%' : '-';
                 
-                let dimClass = tDice === 0 ? 'text-gray-400' : 'text-gray-800';
-                let dmgColor = tDmg > 0 ? 'text-green-600' : '';
-                let cDmgColor = cumulativeStats[pNameStr].dmg > 0 ? 'text-green-700' : '';
+                let dimClass = tDice === 0 ? 'text-stone-400' : 'text-stone-800';
+                let dmgColor = tDmg > 0 ? 'text-[#4a5320] font-bold' : '';
+                let cDmgColor = cumulativeStats[pNameStr].dmg > 0 ? 'text-[#4a5320] font-bold' : '';
                 
-                turnHtml += '<tr class="stat-row hover:bg-gray-100 border-b border-gray-100 ' + dimClass + '">' +
-                    '<td class="whitespace-nowrap py-2 pl-4 text-sm font-medium">R' + t.roundDisplay + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-medium">#' + (i + 1) + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-bold ' + colorClass + '">' + t.player + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm">' + t.card + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200">' + tDice + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold ' + dmgColor + '">' + tDmg + '</td>' +
+                turnHtml += '<tr class="stat-row hover:bg-[#e7e5df] border-b border-stone-200 ' + dimClass + '">' +
+                    '<td class="whitespace-nowrap py-2 pl-4 text-sm font-bold">R' + t.roundDisplay + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-bold">#' + (i + 1) + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-black ' + colorClass + '">' + t.player + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-medium">' + t.card + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-bold border-l border-stone-300">' + tDice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center ' + dmgColor + '">' + tDmg + '</td>' +
                     '<td class="whitespace-nowrap py-2 px-2 text-sm text-center">' + tRatio + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200 bg-gray-50/50 text-gray-500">' + cumulativeStats[pNameStr].dice + '</td>' +
-                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold bg-gray-50/50 text-gray-500 ' + cDmgColor + '">' + cumulativeStats[pNameStr].dmg + '</td>' +
-                    '<td class="whitespace-nowrap py-2 pr-4 text-sm text-center bg-gray-50/50 text-gray-500">' + cRatio + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-bold border-l border-stone-300 bg-[#ebe9e1] text-stone-500">' + cumulativeStats[pNameStr].dice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center bg-[#ebe9e1] text-stone-500 ' + cDmgColor + '">' + cumulativeStats[pNameStr].dmg + '</td>' +
+                    '<td class="whitespace-nowrap py-2 pr-4 text-sm text-center bg-[#ebe9e1] text-stone-500">' + cRatio + '</td>' +
                 '</tr>';
             }
             document.getElementById('turnLogBody').innerHTML = turnHtml;
