@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memoir '44 Game Log Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .stat-row:hover td { background-color: #f8fafc; }
+        .group-header { background-color: #f1f5f9; color: #334155; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 md:p-8 min-h-screen relative">
+    
+    <!-- Mobile-Friendly Tooltip Modal -->
+    <div id="infoModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-opacity-50 hidden opacity-0 transition-opacity duration-200" onclick="closeInfo()">
+        <div class="bg-white p-6 rounded-xl max-w-sm mx-4 shadow-2xl transform transition-transform scale-95" id="infoModalContent" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="font-bold text-lg text-blue-900">Metric Info</h4>
+                <button onclick="closeInfo()" class="text-gray-400 hover:text-gray-600 font-bold text-2xl leading-none">&times;</button>
+            </div>
+            <p id="infoModalText" class="text-sm text-gray-700 leading-relaxed"></p>
+            <button class="mt-6 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors" onclick="closeInfo()">Got it</button>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
+        <h1 class="text-3xl font-bold mb-2 text-blue-900">Memoir '44 Log Analyzer</h1>
+        <p class="text-gray-600 mb-6">Paste your Board Game Arena game log below. Automatically detects and splits multiple rounds.</p>
+        
+        <textarea id="logInput" class="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y mb-4 font-mono text-sm shadow-inner" placeholder="Paste game log here..."></textarea>
+        
+        <button onclick="processLog()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md">
+            Generate Statistics
+        </button>
+
+        <div id="results" class="mt-8 hidden">
+            
+            <!-- Match Summary Header -->
+            <div id="matchSummary" class="mb-6 bg-blue-50 p-5 rounded-lg border border-blue-100">
+                <h3 class="text-2xl font-bold text-blue-900 mb-3" id="matchWinnerText"></h3>
+                <div id="roundSummaries" class="text-sm text-gray-700 space-y-1">
+                    <!-- Dynamic round factions & hand sizes injected here -->
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 mb-6 gap-4">
+                <h2 class="text-2xl font-bold text-gray-800">Match Statistics</h2>
+                <div id="roundSelector" class="hidden flex bg-gray-200 p-1 rounded-lg">
+                    <!-- Dynamic Round Buttons injected here -->
+                </div>
+            </div>
+
+            <!-- Stats Table -->
+            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg mb-10">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-800">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-white sm:pl-6 w-1/4">Statistic</th>
+                            <th scope="col" id="p1Name" class="px-3 py-3.5 text-left text-sm font-bold text-blue-300 w-1/4">Player 1</th>
+                            <th scope="col" id="p2Name" class="px-3 py-3.5 text-left text-sm font-bold text-red-300 w-1/4">Player 2</th>
+                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-white w-1/4">Difference</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsBody" class="divide-y divide-gray-200 bg-white">
+                        <!-- Stats injected here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Deck Table -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Deck Inventory</h2>
+            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg mb-10">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold sm:pl-6">Card Name</th>
+                            <th scope="col" class="px-3 py-3.5 text-center text-sm font-semibold">
+                                Total Available <span title="Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck." onclick="showInfo('Includes extra copies made available when Their Finest Hour reshuffles the discard pile back into the draw deck.')" class="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold text-white bg-gray-500 rounded-full cursor-pointer hover:bg-gray-400 transition-colors">?</span>
+                            </th>
+                            <th scope="col" id="deckP1Name" class="px-3 py-3.5 text-center text-sm font-semibold text-blue-300">Received by P1</th>
+                            <th scope="col" id="deckP2Name" class="px-3 py-3.5 text-center text-sm font-semibold text-red-300">Received by P2</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deckBody" class="divide-y divide-gray-200">
+                        <!-- Deck injected here -->
+                    </tbody>
+                    <tfoot id="deckFooter" class="bg-gray-100 font-bold border-t-2 border-gray-300">
+                        <!-- Deck totals injected here -->
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Turn Breakdown -->
+            <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">Turn-by-Turn Breakdown</h2>
+            <div class="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th scope="col" class="py-3 pl-4 text-left text-sm font-semibold">Rnd</th>
+                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Turn</th>
+                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Player</th>
+                            <th scope="col" class="py-3 px-2 text-left text-sm font-semibold">Card Played</th>
+                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold border-l border-gray-600">Dice Rolled</th>
+                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold">Damage</th>
+                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold">Hit Ratio</th>
+                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold border-l border-gray-600 text-gray-300">Total Dice</th>
+                            <th scope="col" class="py-3 px-2 text-center text-sm font-semibold text-gray-300">Total Damage</th>
+                            <th scope="col" class="py-3 pr-4 text-center text-sm font-semibold text-gray-300">Total Hit Ratio</th>
+                        </tr>
+                    </thead>
+                    <tbody id="turnLogBody" class="divide-y divide-gray-200 bg-white">
+                        <!-- Turn log injected here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="unknownCards" class="mt-4 p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg hidden text-sm">
+                <strong>Note:</strong> Some discarded cards lacked specific section data. These are accounted for in total cards played but couldn't be strictly placed: 
+                <span id="unknownCardsList"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modal UI Controls
+        window.showInfo = function(text) {
+            var modal = document.getElementById('infoModal');
+            var content = document.getElementById('infoModalContent');
+            document.getElementById('infoModalText').innerText = text;
+            modal.classList.remove('hidden');
+            void modal.offsetWidth; // trigger layout reflow
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        };
+        window.closeInfo = function() {
+            var modal = document.getElementById('infoModal');
+            var content = document.getElementById('infoModalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(function() {
+                modal.classList.add('hidden');
+            }, 200);
+        };
+
+        const getTooltipIcon = function(text) {
+            let safeText = text.replace(/'/g, "\\'");
+            return '<span title="' + safeText + '" onclick="showInfo(\'' + safeText + '\')" class="inline-flex items-center justify-center w-4 h-4 ml-1.5 text-[10px] font-bold text-white bg-blue-500 rounded-full cursor-pointer hover:bg-blue-700 transition-colors">?</span>';
+        };
+
+        const DECK_ORDER = [
+            { name: "Recon [Left]", base: 2, type: "Section" },
+            { name: "Recon [Center]", base: 2, type: "Section" },
+            { name: "Recon [Right]", base: 2, type: "Section" },
+            { name: "Probe [Left]", base: 4, type: "Section" },
+            { name: "Probe [Center]", base: 5, type: "Section" },
+            { name: "Probe [Right]", base: 4, type: "Section" },
+            { name: "Attack [Left]", base: 3, type: "Section" },
+            { name: "Attack [Center]", base: 4, type: "Section" },
+            { name: "Attack [Right]", base: 3, type: "Section" },
+            { name: "Assault [Left]", base: 2, type: "Section" },
+            { name: "Assault [Center]", base: 2, type: "Section" },
+            { name: "Assault [Right]", base: 2, type: "Section" },
+            { name: "Recon In Force", base: 3, type: "Section", sub: "Multi" },
+            { name: "Pincer Move", base: 1, type: "Section", sub: "Multi" },
+            { name: "General Advance", base: 1, type: "Section", sub: "Multi" },
+            { name: "Air Power", base: 1, type: "Tactic" },
+            { name: "Ambush", base: 1, type: "Tactic" },
+            { name: "Armor Assault", base: 2, type: "Tactic" },
+            { name: "Artillery Bombard", base: 1, type: "Tactic" },
+            { name: "Barrage", base: 1, type: "Tactic" },
+            { name: "Behind Enemy Lines", base: 1, type: "Tactic" },
+            { name: "Close Assault", base: 1, type: "Tactic" },
+            { name: "Counter-Attack", base: 2, type: "Tactic" },
+            { name: "Dig-In", base: 1, type: "Tactic" },
+            { name: "Direct From HQ", base: 2, type: "Tactic" },
+            { name: "Firefight", base: 1, type: "Tactic" },
+            { name: "Infantry Assault", base: 2, type: "Tactic" },
+            { name: "Medics & Mechanics", base: 1, type: "Tactic" },
+            { name: "Move Out!", base: 2, type: "Tactic" },
+            { name: "Their Finest Hour", base: 1, type: "Tactic" }
+        ];
+
+        const BASE_DECK = [];
+        const CARD_RS = {};
+        DECK_ORDER.forEach(function(card) {
+            CARD_RS[card.name] = 60 / card.base; 
+            for(let i=0; i<card.base; i++) {
+                BASE_DECK.push(card.name);
+            }
+        });
+
+        function normalizeCardName(raw) {
+            let lower = raw.toLowerCase().trim();
+            if (lower === "recon on the left flank") return "Recon [Left]";
+            if (lower === "recon on the right flank") return "Recon [Right]";
+            if (lower === "recon on the center") return "Recon [Center]";
+            if (lower === "probe on the left flank") return "Probe [Left]";
+            if (lower === "probe on the right flank") return "Probe [Right]";
+            if (lower === "probe on the center") return "Probe [Center]";
+            if (lower === "attack on the left flank") return "Attack [Left]";
+            if (lower === "attack on the right flank") return "Attack [Right]";
+            if (lower === "attack on the center") return "Attack [Center]";
+            if (lower === "assault on the left flank") return "Assault [Left]";
+            if (lower === "assault on the right flank") return "Assault [Right]";
+            if (lower === "assault on the center") return "Assault [Center]";
+            if (lower === "recon in force") return "Recon In Force";
+            if (lower === "pincer move") return "Pincer Move";
+            if (lower === "general advance") return "General Advance";
+            if (lower === "infantry assault") return "Infantry Assault";
+            if (lower === "armor assault") return "Armor Assault";
+            if (lower === "medics & mechanics") return "Medics & Mechanics";
+            if (lower === "direct from hq") return "Direct From HQ";
+            if (lower === "barrage") return "Barrage";
+            if (lower === "close assault") return "Close Assault";
+            if (lower === "ambush") return "Ambush";
+            if (lower === "move out") return "Move Out!";
+            if (lower.indexOf("counterattack") !== -1 || lower.indexOf("counter-attack") !== -1) return "Counter-Attack";
+            if (lower === "dig-in") return "Dig-In";
+            if (lower === "firefight") return "Firefight";
+            if (lower === "air power") return "Air Power";
+            if (lower === "artillery bombard") return "Artillery Bombard";
+            if (lower === "behind enemy lines") return "Behind Enemy Lines";
+            if (lower === "their finest hour") return "Their Finest Hour";
+            return raw;
+        }
+
+        let parsedRounds = [];
+        let allPlayerNames = [];
+
+        function parseGame(logText) {
+            const lines = logText.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l; });
+            let rawRounds = [];
+            let currentRawRound = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                currentRawRound.push(line);
+                if (/wins round n°/i.test(line)) {
+                    rawRounds.push(currentRawRound);
+                    currentRawRound = [];
+                }
+            }
+            if (currentRawRound.length > 0) rawRounds.push(currentRawRound);
+
+            const p_restart = /^(.*?) restart their turn$/;
+            let finalRounds = [];
+
+            rawRounds.forEach(function(roundLines) {
+                let events = [];
+                for (let i = 0; i < roundLines.length; i++) {
+                    let line = roundLines[i];
+                    let m = line.match(p_restart);
+                    if (m) {
+                        let player = m[1];
+                        let rewindIdx = -1;
+                        for (let j = events.length - 1; j >= 0; j--) {
+                            if (events[j].indexOf(player + ' plays ') === 0 || events[j].indexOf(player + ' draws ') === 0) {
+                                rewindIdx = j;
+                                break;
+                            }
+                        }
+                        if (rewindIdx !== -1) {
+                            events.length = rewindIdx; 
+                        } else {
+                            events.length = 0; 
+                        }
+                    } else {
+                        events.push(line);
+                    }
+                }
+
+                let players = {};
+                let medals = {};
+                let factions = {};
+                let matchTurns = []; 
+                let roundReveals = []; 
+                let lastActor = null;
+                
+                let dynamicDeckTotals = {};
+                DECK_ORDER.forEach(function(card) { dynamicDeckTotals[card.name] = card.base; });
+                
+                const getPlayer = function(name) {
+                    if (!players[name]) players[name] = { name: name, cardsPlayed: [], knownCards: [], unitsOrdered: 0, attacks: [], turns: [], rarityScore: 0, startingHandSize: 0, handSizeAdvantage: 0 };
+                    return players[name];
+                };
+
+                let currentAttack = null;
+                let lastPlayedCard = {};
+
+                const p_draws = /^(.*?) draws (\d+) card\(s\)$/;
+                const p_play = /^(.*?) plays (.*)$/;
+                const p_orders = /^(.*?) issues orders to (.*)$/;
+                const p_attack = /^(.*?) attacks \d+ ([A-Za-z]+)/;
+                const p_roll = /^(.*?) rolls (.*)$/;
+                const p_damage = /^(.*?)'s unit .* takes (\d+) damage\(s\)( because retreat is blocked)?$/;
+                const p_discard = /^(.*?) discards (.*)$/;
+                const p_medal = /^(Axis|Allies) scores \d+ medal\(s\)$/;
+
+                for (let i = 0; i < events.length; i++) {
+                    let line = events[i];
+                    let isAttackContinuation = p_roll.test(line) || p_damage.test(line) || /retreats \d+/.test(line) || p_medal.test(line);
+                    let endsContext = p_attack.test(line) || p_play.test(line) || p_orders.test(line) || p_discard.test(line) || p_draws.test(line) || /^.*? moves/.test(line);
+                    
+                    if (endsContext && !isAttackContinuation && currentAttack) {
+                        let p = getPlayer(currentAttack.attacker);
+                        p.attacks.push(currentAttack);
+                        if(p.turns.length > 0) p.turns[p.turns.length - 1].attacks.push(currentAttack);
+                        currentAttack = null;
+                    }
+
+                    let m;
+                    if (m = line.match(p_draws)) {
+                        let pName = m[1];
+                        let num = parseInt(m[2]);
+                        if (!getPlayer(pName).startingHandSize) {
+                            getPlayer(pName).startingHandSize = num;
+                        }
+                    }
+                    else if (m = line.match(p_play)) {
+                        lastActor = m[1];
+                        let cardStr = m[2].split(" in reaction to ")[0].trim();
+                        let normalized = normalizeCardName(cardStr);
+                        let p = getPlayer(lastActor);
+                        p.cardsPlayed.push(normalized);
+                        p.knownCards.push(normalized);
+                        lastPlayedCard[lastActor] = cardStr.toLowerCase();
+                        
+                        roundReveals.push({ player: lastActor, card: normalized, raw: cardStr, type: 'play' });
+                        
+                        let newTurn = { player: lastActor, card: normalized, attacks: [] };
+                        p.turns.push(newTurn);
+                        matchTurns.push(newTurn);
+                    }
+                    else if (m = line.match(p_orders)) {
+                        lastActor = m[1];
+                        let count = 0;
+                        let parts = m[2].split(',');
+                        for(let j=0; j<parts.length; j++) {
+                            let num = parseInt(parts[j].trim().split(' ')[0]);
+                            if (!isNaN(num)) count += num;
+                        }
+                        getPlayer(lastActor).unitsOrdered += count;
+                    }
+                    else if (m = line.match(p_attack)) {
+                        lastActor = m[1];
+                        currentAttack = {
+                            attacker: m[1], targetType: m[2], diceRolled: 0, diceDamage: 0, retreatDamage: 0, flags: 0,
+                            sym: { inf: 0, arm: 0, star: 0, flag: 0, gren: 0 }
+                        };
+                        getPlayer(lastActor);
+                    }
+                    else if (m = line.match(p_roll)) {
+                        if (currentAttack) {
+                            let dice = m[2].split(' ');
+                            currentAttack.diceRolled += dice.length;
+                            for(let j=0; j<dice.length; j++) { 
+                                let s = dice[j].toLowerCase();
+                                if (s === 'flag') { currentAttack.flags++; currentAttack.sym.flag++; }
+                                else if (s === 'infantry') currentAttack.sym.inf++;
+                                else if (s === 'armor') currentAttack.sym.arm++;
+                                else if (s === 'star') currentAttack.sym.star++;
+                                else if (s === 'grenade') currentAttack.sym.gren++;
+                            }
+                        }
+                    }
+                    else if (m = line.match(p_damage)) {
+                        if (currentAttack) {
+                            let dmg = parseInt(m[2]);
+                            if (m[3]) currentAttack.retreatDamage += dmg;
+                            else currentAttack.diceDamage += dmg;
+                        }
+                    }
+                    else if (m = line.match(p_medal)) {
+                        if (lastActor) {
+                            medals[lastActor] = (medals[lastActor] || 0) + 1;
+                            factions[lastActor] = m[1];
+                        }
+                    }
+                    else if (m = line.match(p_discard)) {
+                        lastActor = m[1];
+                        let discardStr = m[2].trim().toLowerCase();
+                        let lastPlayed = lastPlayedCard[lastActor] || "";
+                        let normalizedDiscard = normalizeCardName(discardStr);
+                        let normalizedLast = normalizeCardName(lastPlayed);
+                        
+                        if (lastPlayed && (lastPlayed.indexOf(discardStr) === 0 || normalizedDiscard === normalizedLast)) {
+                            lastPlayedCard[lastActor] = null; 
+                        } else {
+                            getPlayer(lastActor).knownCards.push(normalizedDiscard);
+                            roundReveals.push({ player: lastActor, card: normalizedDiscard, raw: discardStr, type: 'discard' });
+                        }
+                    }
+                }
+                
+                if (currentAttack) {
+                    let p = getPlayer(currentAttack.attacker);
+                    p.attacks.push(currentAttack);
+                    if(p.turns.length > 0) p.turns[p.turns.length - 1].attacks.push(currentAttack);
+                }
+
+                let pKeys = Object.keys(players);
+                if (pKeys.length >= 2) {
+                    let f1 = factions[pKeys[0]];
+                    let f2 = factions[pKeys[1]];
+                    if (f1 && !f2) factions[pKeys[1]] = (f1 === 'Axis' ? 'Allies' : 'Axis');
+                    if (f2 && !f1) factions[pKeys[0]] = (f2 === 'Axis' ? 'Allies' : 'Axis');
+                }
+
+                let unseenPool = BASE_DECK.slice(); 
+                let discardPile = [];
+                
+                for(let i=0; i<roundReveals.length; i++) {
+                    let reveal = roundReveals[i];
+                    let name = reveal.card;
+                    if (CARD_RS[name]) {
+                        let rs = CARD_RS[name];
+                        let poolRSTotal = 0;
+                        for(let j=0; j<unseenPool.length; j++) { poolRSTotal += CARD_RS[unseenPool[j]]; }
+                        
+                        let ev = unseenPool.length > 0 ? poolRSTotal / unseenPool.length : 0;
+                        players[reveal.player].rarityScore += (rs - ev);
+                        
+                        let idx = unseenPool.indexOf(name);
+                        if (idx > -1) unseenPool.splice(idx, 1);
+                        discardPile.push(name);
+                        
+                        let isReshuffle = false;
+                        if (reveal.type === 'play') {
+                            if (name === "Their Finest Hour") {
+                                isReshuffle = true;
+                            } else if (name === "Counter-Attack" && reveal.raw.toLowerCase().indexOf("their finest hour") !== -1) {
+                                isReshuffle = true;
+                            }
+                        }
+
+                        if (isReshuffle) {
+                            for(let j=0; j<discardPile.length; j++) {
+                                let cName = discardPile[j];
+                                dynamicDeckTotals[cName] += 1;
+                            }
+                            unseenPool = unseenPool.concat(discardPile);
+                            discardPile = [];
+                        }
+                    }
+                }
+
+                if (pKeys.length >= 2) {
+                    let poolRSTotal = 0;
+                    let lowestRS = Infinity;
+                    for(let i=0; i<unseenPool.length; i++) {
+                        let rs = CARD_RS[unseenPool[i]];
+                        poolRSTotal += rs;
+                        if (rs < lowestRS) lowestRS = rs;
+                    }
+                    if (lowestRS === Infinity) lowestRS = 0;
+                    let finalDeckAvg = unseenPool.length > 0 ? poolRSTotal / unseenPool.length : 0;
+                    
+                    let pA = players[pKeys[0]];
+                    let pB = players[pKeys[1]];
+                    let diff = Math.abs(pA.startingHandSize - pB.startingHandSize);
+                    let roundAdv = (finalDeckAvg - lowestRS) * diff;
+                    
+                    pA.handSizeAdvantage = (pA.startingHandSize > pB.startingHandSize) ? roundAdv : 0;
+                    pB.handSizeAdvantage = (pB.startingHandSize > pA.startingHandSize) ? roundAdv : 0;
+                }
+
+                finalRounds.push({ players: players, medals: medals, factions: factions, matchTurns: matchTurns, dynamicDeckTotals: dynamicDeckTotals });
+            });
+
+            return finalRounds;
+        }
+
+        function mergePlayers(pA, pB) {
+            if (!pA) return pB ? JSON.parse(JSON.stringify(pB)) : null;
+            if (!pB) return pA ? JSON.parse(JSON.stringify(pA)) : null;
+            return {
+                name: pA.name,
+                cardsPlayed: pA.cardsPlayed.concat(pB.cardsPlayed),
+                knownCards: pA.knownCards.concat(pB.knownCards),
+                unitsOrdered: pA.unitsOrdered + pB.unitsOrdered,
+                attacks: pA.attacks.concat(pB.attacks),
+                turns: pA.turns.concat(pB.turns),
+                rarityScore: (pA.rarityScore || 0) + (pB.rarityScore || 0),
+                handSizeAdvantage: (pA.handSizeAdvantage || 0) + (pB.handSizeAdvantage || 0)
+            };
+        }
+
+        function calculateStats(p) {
+            const calcRatio = function(arr, cond) { return arr.length ? (arr.filter(cond).length / arr.length * 100) : 0; };
+            const calcHitRatio = function(arr) {
+                let hits = 0; let dice = 0;
+                for(let i=0; i<arr.length; i++) { hits += arr[i].diceDamage; dice += arr[i].diceRolled; }
+                return dice > 0 ? (hits / dice * 100) : 0;
+            };
+            const getStreak = function(attacks, cond) {
+                let max = 0, cur = 0;
+                for (let i=0; i<attacks.length; i++) {
+                    if (cond(attacks[i])) { cur++; if (cur > max) max = cur; } 
+                    else { cur = 0; }
+                }
+                return max;
+            };
+
+            let infAttacks = p.attacks.filter(function(a) { return a.targetType === 'Infantry'; });
+            let armAttacks = p.attacks.filter(function(a) { return a.targetType === 'Armor'; });
+            let artAttacks = p.attacks.filter(function(a) { return a.targetType === 'Artillery'; });
+            
+            let totalDice=0, totFlags=0, totStars=0, totInf=0, totGren=0;
+            for(let i=0; i<p.attacks.length; i++) {
+                totalDice += p.attacks[i].diceRolled;
+                totFlags += p.attacks[i].sym.flag;
+                totStars += p.attacks[i].sym.star;
+                totInf += p.attacks[i].sym.inf;
+                totGren += p.attacks[i].sym.gren;
+            }
+
+            let armorVsArmorDice=0, armorVsArmorSym=0;
+            for(let i=0; i<armAttacks.length; i++) { armorVsArmorDice += armAttacks[i].diceRolled; armorVsArmorSym += armAttacks[i].sym.arm; }
+            
+            let infVsInfDice=0, infVsInfSym=0;
+            for(let i=0; i<infAttacks.length; i++) { infVsInfDice += infAttacks[i].diceRolled; infVsInfSym += infAttacks[i].sym.inf; }
+
+            let blankTurnsCount = 0;
+            for(let i=0; i<p.turns.length; i++) {
+                let t = p.turns[i];
+                let turnDmg = 0;
+                for(let j=0; j<t.attacks.length; j++) { turnDmg += (t.attacks[j].diceDamage + t.attacks[j].retreatDamage); }
+                if (turnDmg === 0) blankTurnsCount++;
+            }
+
+            let totalFlagHitRetreatDmg = 0;
+            for(let i=0; i<p.attacks.length; i++) { totalFlagHitRetreatDmg += p.attacks[i].retreatDamage; }
+
+            let s=0, m=0, t=0;
+            let fl = { "Left":0, "Center":0, "Right":0 };
+            for(let i=0; i<p.cardsPlayed.length; i++) {
+                let c = p.cardsPlayed[i];
+                let ref = null;
+                for(let j=0; j<DECK_ORDER.length; j++) { if (DECK_ORDER[j].name === c) { ref = DECK_ORDER[j]; break; } }
+                if (ref) {
+                    if (ref.type === "Section") {
+                        if (ref.sub === "Multi") m++; else s++;
+                        if (c.indexOf("[Left]") !== -1) fl["Left"]++;
+                        if (c.indexOf("[Center]") !== -1) fl["Center"]++;
+                        if (c.indexOf("[Right]") !== -1) fl["Right"]++;
+                    } else { t++; }
+                }
+            }
+            let total = p.cardsPlayed.length;
+
+            return {
+                uhrInf: calcRatio(infAttacks, function(a) { return a.diceDamage >= 1; }),
+                uhrArm: calcRatio(armAttacks, function(a) { return a.diceDamage >= 1; }),
+                uhrArt: calcRatio(artAttacks, function(a) { return a.diceDamage >= 1; }),
+                hrInf: calcHitRatio(infAttacks),
+                hrArm: calcHitRatio(armAttacks),
+                hrArt: calcHitRatio(artAttacks),
+                pctFlagDice: totalDice ? (totFlags / totalDice * 100) : 0,
+                pctStarDice: totalDice ? (totStars / totalDice * 100) : 0,
+                pctInfDice: totalDice ? (totInf / totalDice * 100) : 0,
+                pctGrenDice: totalDice ? (totGren / totalDice * 100) : 0,
+                pctArmorVsArmor: armorVsArmorDice ? (armorVsArmorSym / armorVsArmorDice * 100) : 0,
+                pctInfVsInf: infVsInfDice ? (infVsInfSym / infVsInfDice * 100) : 0,
+                flagAtkRatio: calcRatio(p.attacks, function(a) { return a.flags > 0; }),
+                flagHitRatio: totFlags > 0 ? (totalFlagHitRetreatDmg / totFlags * 100) : 0,
+                doubleKill: calcRatio(p.attacks, function(a) { return a.diceDamage >= 2; }),
+                tripleKill: calcRatio(p.attacks, function(a) { return a.diceDamage >= 3; }),
+                noHit: calcRatio(p.attacks, function(a) { return a.diceDamage === 0; }),
+                killStreak: getStreak(p.attacks, function(a) { return (a.diceDamage + a.retreatDamage) >= 1; }),
+                blankStreak: getStreak(p.attacks, function(a) { return (a.diceDamage + a.retreatDamage) === 0; }),
+                blankTurnRatio: p.turns.length ? (blankTurnsCount / p.turns.length * 100) : 0,
+                rarityScore: p.rarityScore || 0,
+                handSizeAdvantage: p.handSizeAdvantage || 0,
+                totalUnits: p.unitsOrdered,
+                avgUnitsPerCard: p.cardsPlayed.length ? p.unitsOrdered / p.cardsPlayed.length : 0,
+                cards: {
+                    pctSec: total ? ((s+m)/total*100) : 0,
+                    pctMulti: total ? (m/total*100) : 0,
+                    pctTac: total ? (t/total*100) : 0,
+                    pctLeft: s ? (fl["Left"]/s*100) : 0,
+                    pctCenter: s ? (fl["Center"]/s*100) : 0,
+                    pctRight: s ? (fl["Right"]/s*100) : 0
+                }
+            };
+        }
+
+        function processLog() {
+            try {
+                const logText = document.getElementById('logInput').value;
+                if (!logText.trim()) return alert("Please paste a game log first.");
+
+                parsedRounds = parseGame(logText);
+                if (parsedRounds.length === 0) return alert("Could not parse rounds from log.");
+
+                let pFreq = {};
+                for(let i=0; i<parsedRounds.length; i++) {
+                    let r = parsedRounds[i];
+                    let keys = Object.keys(r.players);
+                    for(let j=0; j<keys.length; j++) { pFreq[keys[j]] = (pFreq[keys[j]] || 0) + 1; }
+                }
+                
+                allPlayerNames = Object.keys(pFreq).sort(function(a,b) { return pFreq[b] - pFreq[a]; }).slice(0, 2);
+                if (allPlayerNames.length < 2) return alert("Could not identify 2 distinct players from the log provided.");
+
+                let p1TotalMedals = 0; let p2TotalMedals = 0;
+                let summaryHtml = '';
+                
+                for(let i=0; i<parsedRounds.length; i++) {
+                    let r = parsedRounds[i];
+                    let m1 = r.medals[allPlayerNames[0]] || 0;
+                    let m2 = r.medals[allPlayerNames[1]] || 0;
+                    p1TotalMedals += m1; p2TotalMedals += m2;
+                    
+                    let p1Fac = r.factions[allPlayerNames[0]] || 'Unknown';
+                    let p2Fac = r.factions[allPlayerNames[1]] || 'Unknown';
+                    let p1Hand = r.players[allPlayerNames[0]] ? (r.players[allPlayerNames[0]].startingHandSize || '?') : '?';
+                    let p2Hand = r.players[allPlayerNames[1]] ? (r.players[allPlayerNames[1]].startingHandSize || '?') : '?';
+                    let rWinner = m1 > m2 ? allPlayerNames[0] : (m2 > m1 ? allPlayerNames[1] : "Tie");
+                    
+                    summaryHtml += '<p class="mt-2"><strong class="text-blue-800">Round ' + (i+1) + ':</strong> ' + 
+                        allPlayerNames[0] + ' (' + p1Fac + ', ' + p1Hand + ' cards) vs ' + 
+                        allPlayerNames[1] + ' (' + p2Fac + ', ' + p2Hand + ' cards) &nbsp;|&nbsp; <strong>Winner:</strong> ' + rWinner + '</p>';
+                }
+                
+                let mWinner = p1TotalMedals > p2TotalMedals ? allPlayerNames[0] : (p2TotalMedals > p1TotalMedals ? allPlayerNames[1] : "Tie");
+                let mScore = Math.max(p1TotalMedals, p2TotalMedals) + ' - ' + Math.min(p1TotalMedals, p2TotalMedals);
+                document.getElementById('matchWinnerText').innerText = 'Match Winner: ' + mWinner + ' (' + mScore + ')';
+                document.getElementById('roundSummaries').innerHTML = summaryHtml;
+
+                let selectorHtml = '<button onclick="renderView(-1)" id="btn-view--1" class="px-4 py-1.5 text-sm font-semibold rounded-md bg-white shadow text-gray-800 transition">Total</button>';
+                for(let i=0; i<parsedRounds.length; i++) {
+                    selectorHtml += '<button onclick="renderView(' + i + ')" id="btn-view-' + i + '" class="px-4 py-1.5 text-sm font-semibold rounded-md text-gray-600 hover:text-gray-800 transition ml-2">Round ' + (i+1) + '</button>';
+                }
+                
+                if (parsedRounds.length > 1) {
+                    document.getElementById('roundSelector').innerHTML = selectorHtml;
+                    document.getElementById('roundSelector').classList.remove('hidden');
+                    renderView(-1);
+                } else {
+                    document.getElementById('roundSelector').classList.add('hidden');
+                    renderView(0);
+                }
+                
+                document.getElementById('results').classList.remove('hidden');
+            } catch (err) {
+                alert("An error occurred generating statistics. Please ensure the log is correctly formatted. \n\nError: " + err.message);
+                console.error(err);
+            }
+        }
+
+        function renderView(roundIndex) {
+            if (parsedRounds.length > 1) {
+                let buttons = document.getElementById('roundSelector').children;
+                for (let i = 0; i < buttons.length; i++) {
+                    let btn = buttons[i];
+                    let btnIdx = parseInt(btn.id.replace('btn-view-', ''));
+                    if (btnIdx === roundIndex) {
+                        btn.className = "px-4 py-1.5 text-sm font-semibold rounded-md bg-white shadow text-gray-800 transition ml-2";
+                        if(btnIdx === -1) btn.classList.remove('ml-2');
+                    } else {
+                        btn.className = "px-4 py-1.5 text-sm font-semibold rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition ml-2";
+                        if(btnIdx === -1) btn.classList.remove('ml-2');
+                    }
+                }
+            }
+
+            let p1Data, p2Data, turnsList = [];
+            let dynamicDeckTotalsCombined = {};
+            DECK_ORDER.forEach(function(card) { dynamicDeckTotalsCombined[card.name] = 0; });
+
+            if (roundIndex === -1) {
+                p1Data = parsedRounds.reduce(function(acc, r) { return mergePlayers(acc, r.players[allPlayerNames[0]]); }, null);
+                p2Data = parsedRounds.reduce(function(acc, r) { return mergePlayers(acc, r.players[allPlayerNames[1]]); }, null);
+                
+                for(let i=0; i<parsedRounds.length; i++) {
+                    let r = parsedRounds[i];
+                    for(let j=0; j<r.matchTurns.length; j++) {
+                        let t = Object.assign({}, r.matchTurns[j]);
+                        t.roundDisplay = i+1;
+                        turnsList.push(t);
+                    }
+                    let keys = Object.keys(r.dynamicDeckTotals);
+                    for(let j=0; j<keys.length; j++) { dynamicDeckTotalsCombined[keys[j]] += r.dynamicDeckTotals[keys[j]]; }
+                }
+            } else {
+                let r = parsedRounds[roundIndex];
+                p1Data = r.players[allPlayerNames[0]];
+                p2Data = r.players[allPlayerNames[1]];
+                
+                for(let j=0; j<r.matchTurns.length; j++) {
+                    let t = Object.assign({}, r.matchTurns[j]);
+                    t.roundDisplay = roundIndex+1;
+                    turnsList.push(t);
+                }
+                let keys = Object.keys(r.dynamicDeckTotals);
+                for(let j=0; j<keys.length; j++) { dynamicDeckTotalsCombined[keys[j]] = r.dynamicDeckTotals[keys[j]]; }
+            }
+
+            p1Data = p1Data || { name: allPlayerNames[0], cardsPlayed: [], knownCards: [], unitsOrdered: 0, attacks: [], turns: [], rarityScore: 0, handSizeAdvantage: 0 };
+            p2Data = p2Data || { name: allPlayerNames[1], cardsPlayed: [], knownCards: [], unitsOrdered: 0, attacks: [], turns: [], rarityScore: 0, handSizeAdvantage: 0 };
+
+            document.getElementById('p1Name').textContent = p1Data.name;
+            document.getElementById('p2Name').textContent = p2Data.name;
+            document.getElementById('deckP1Name').textContent = p1Data.name;
+            document.getElementById('deckP2Name').textContent = p2Data.name;
+
+            let s1 = calculateStats(p1Data);
+            let s2 = calculateStats(p2Data);
+
+            const formatP = function(v) { return v.toFixed(1) + '%'; };
+            const formatN = function(v) { return (v % 1 === 0 ? v : v.toFixed(2)); };
+            const formatDelta = function(v) { return (v > 0 ? '+' : '') + v.toFixed(2); };
+
+            const getDiff = function(v1, v2, isPct, isDelta) {
+                let diff = Math.abs(v1 - v2);
+                if (diff < 0.05) return '<span class="text-gray-400 font-normal">Equal</span>';
+                let leader = v1 > v2 ? 'P1' : 'P2';
+                let color = leader === 'P1' ? 'text-blue-600' : 'text-red-600';
+                let formattedDiff = isPct ? formatP(diff) : formatN(diff);
+                return '<span class="font-medium ' + color + '">' + leader + ' +' + formattedDiff + '</span>';
+            };
+
+            const addHeader = function(title) {
+                return '<tr><td colspan="4" class="group-header py-2 px-4 border-b border-gray-200">' + title + '</td></tr>';
+            };
+            const addRow = function(label, v1, v2, isPct, isDelta) {
+                let val1 = isDelta ? formatDelta(v1) : (isPct ? formatP(v1) : formatN(v1));
+                let val2 = isDelta ? formatDelta(v2) : (isPct ? formatP(v2) : formatN(v2));
+                return '<tr class="stat-row bg-white transition-colors">' +
+                    '<td class="whitespace-nowrap py-2.5 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6 border-b border-gray-100">' + label + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-gray-700 border-b border-gray-100">' + val1 + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm text-gray-700 border-b border-gray-100">' + val2 + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2.5 text-sm border-b border-gray-100">' + getDiff(v1, v2, isPct, isDelta) + '</td>' +
+                '</tr>';
+            };
+
+            let html = '';
+            html += addHeader('Core Combat Effectiveness');
+            html += addRow('Unit Hit Ratio (vs Infantry)', s1.uhrInf, s2.uhrInf, true, false);
+            html += addRow('Unit Hit Ratio (vs Armor)', s1.uhrArm, s2.uhrArm, true, false);
+            html += addRow('Unit Hit Ratio (vs Artillery)', s1.uhrArt, s2.uhrArt, true, false);
+            html += addRow('Hits Ratio (vs Infantry)', s1.hrInf, s2.hrInf, true, false);
+            html += addRow('Hits Ratio (vs Armor)', s1.hrArm, s2.hrArm, true, false);
+            html += addRow('Hits Ratio (vs Artillery)', s1.hrArt, s2.hrArt, true, false);
+            
+            html += addHeader('Dice & Symbol Analysis');
+            html += addRow('% Total Infantry Dice Rolled', s1.pctInfDice, s2.pctInfDice, true, false);
+            html += addRow('% Total Grenade Dice Rolled', s1.pctGrenDice, s2.pctGrenDice, true, false);
+            html += addRow('% Total Star Dice Rolled', s1.pctStarDice, s2.pctStarDice, true, false);
+            html += addRow('% Total Flag Dice Rolled', s1.pctFlagDice, s2.pctFlagDice, true, false);
+            html += addRow('% Total Infantry Dice against Infantry', s1.pctInfVsInf, s2.pctInfVsInf, true, false);
+            html += addRow('% Total Armor Dice against Armor', s1.pctArmorVsArmor, s2.pctArmorVsArmor, true, false);
+            html += addRow('Flag Attack Ratio (Attacks with ≥1 Flag / Total)', s1.flagAtkRatio, s2.flagAtkRatio, true, false);
+            html += addRow('Flag Hits Ratio (Retreat Hits / Total Flags)', s1.flagHitRatio, s2.flagHitRatio, true, false);
+
+            html += addHeader('Multi-Hits & Streaks');
+            html += addRow('Multiple Hit Ratio (≥2 Dice Dmg)', s1.doubleKill, s2.doubleKill, true, false);
+            html += addRow('Triple Kill Hit Ratio (≥3 Dice Dmg)', s1.tripleKill, s2.tripleKill, true, false);
+            html += addRow('No Hits Ratio (0 Dice Dmg)', s1.noHit, s2.noHit, true, false);
+
+            html += addHeader('Luck & Draw Quality');
+            let tip1 = "Calculates the statistical scarcity of the cards actually played. It compares every played card against the average rarity of the draw deck at that exact moment. A positive score indicates you drew and played rarer cards more often than standard probability dictates.";
+            let tip2 = "Calculates the expected difference in the Played Card Rarity score based purely on starting hand sizes. The player with the smaller hand receives a 0, while the player with the larger hand receives a positive point value representing the extra rarity points they are mathematically expected to gain by being able to hold onto more common cards.";
+            
+            html += addRow('Played Card Rarity (>0 = Rarer cards played than average)' + getTooltipIcon(tip1), s1.rarityScore, s2.rarityScore, false, true);
+            html += addRow('Played Card Rarity Expected Difference (due to hand size)' + getTooltipIcon(tip2), s1.handSizeAdvantage, s2.handSizeAdvantage, false, true);
+            html += addRow('Kill Roll Streak (Max consecutive attacks with ≥1 Dmg)', s1.killStreak, s2.killStreak, false, false);
+            html += addRow('Blank Roll Streak (Max consecutive attacks with 0 Dmg)', s1.blankStreak, s2.blankStreak, false, false);
+            html += addRow('Blank Turn Ratio (% Cards played with 0 Dmg)', s1.blankTurnRatio, s2.blankTurnRatio, true, false);
+
+            html += addHeader('Efficiency & Play Style');
+            html += addRow('Total Units Ordered', s1.totalUnits, s2.totalUnits, false, false);
+            html += addRow('Avg Orders / Card Played', s1.avgUnitsPerCard, s2.avgUnitsPerCard, false, false);
+            html += addRow('% Section Cards Played', s1.cards.pctSec, s2.cards.pctSec, true, false);
+            html += addRow('% Multi-Section Cards Played', s1.cards.pctMulti, s2.cards.pctMulti, true, false);
+            html += addRow('% Tactics Cards Played', s1.cards.pctTac, s2.cards.pctTac, true, false);
+            html += addRow('↳ Section Cards on Left Flank', s1.cards.pctLeft, s2.cards.pctLeft, true, false);
+            html += addRow('↳ Section Cards in Center', s1.cards.pctCenter, s2.cards.pctCenter, true, false);
+            html += addRow('↳ Section Cards on Right Flank', s1.cards.pctRight, s2.cards.pctRight, true, false);
+            
+            document.getElementById('statsBody').innerHTML = html;
+
+            // Deck Rendering
+            let deckHtml = '';
+            let unknown = [];
+            let countMap1 = {}; let countMap2 = {};
+            
+            for(let i=0; i<p1Data.knownCards.length; i++) { countMap1[p1Data.knownCards[i]] = (countMap1[p1Data.knownCards[i]] || 0) + 1; }
+            for(let i=0; i<p2Data.knownCards.length; i++) { countMap2[p2Data.knownCards[i]] = (countMap2[p2Data.knownCards[i]] || 0) + 1; }
+
+            let tSec1 = 0, tTac1 = 0, tSec2 = 0, tTac2 = 0;
+            let tTotalAvailableDeck = 0, tTotalAvailableSec = 0, tTotalAvailableTac = 0;
+
+            for(let i=0; i<DECK_ORDER.length; i++) {
+                let card = DECK_ORDER[i];
+                let max = dynamicDeckTotalsCombined[card.name]; 
+                let c1 = countMap1[card.name] || 0;
+                let c2 = countMap2[card.name] || 0;
+                
+                tTotalAvailableDeck += max;
+                if (card.type === "Section") { tSec1 += c1; tSec2 += c2; tTotalAvailableSec += max; } 
+                else { tTac1 += c1; tTac2 += c2; tTotalAvailableTac += max; }
+
+                let bgClass = card.type === "Section" ? "bg-green-50" : "bg-gray-50";
+                let font1 = c1 > 0 ? 'text-blue-700 font-bold' : 'text-gray-400';
+                let font2 = c2 > 0 ? 'text-red-700 font-bold' : 'text-gray-400';
+
+                deckHtml += '<tr class="stat-row ' + bgClass + '">' +
+                    '<td class="whitespace-nowrap py-2 pl-4 pr-3 text-sm font-medium text-gray-900 border-b border-gray-200/50 sm:pl-6">' + card.name + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm text-gray-600 text-center font-semibold border-b border-gray-200/50">' + max + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font1 + ' text-center border-b border-gray-200/50">' + (c1 || '-') + '</td>' +
+                    '<td class="whitespace-nowrap px-3 py-2 text-sm ' + font2 + ' text-center border-b border-gray-200/50">' + (c2 || '-') + '</td>' +
+                '</tr>';
+            }
+            document.getElementById('deckBody').innerHTML = deckHtml;
+
+            let tTotal1 = tSec1 + tTac1;
+            let tTotal2 = tSec2 + tTac2;
+            
+            document.getElementById('deckFooter').innerHTML = 
+                '<tr>' +
+                    '<td class="py-3 pl-4 pr-3 text-sm text-gray-700 sm:pl-6 text-right border-r border-gray-300">Total Section Cards Played:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-gray-600">' + tTotalAvailableSec + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-blue-700">' + tSec1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-red-700">' + tSec2 + '</td>' +
+                '</tr>' +
+                '<tr>' +
+                    '<td class="py-3 pl-4 pr-3 text-sm text-gray-700 sm:pl-6 text-right border-r border-gray-300">Total Tactic Cards Played:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-gray-600">' + tTotalAvailableTac + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-blue-700">' + tTac1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-red-700">' + tTac2 + '</td>' +
+                '</tr>' +
+                '<tr class="bg-gray-200 text-gray-900 border-t-2 border-gray-300">' +
+                    '<td class="py-3 pl-4 pr-3 text-sm sm:pl-6 text-right font-bold uppercase border-r border-gray-300">Total Cards:</td>' +
+                    '<td class="px-3 py-3 text-center text-sm">' + tTotalAvailableDeck + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-blue-800">' + tTotal1 + '</td>' +
+                    '<td class="px-3 py-3 text-center text-sm text-red-800">' + tTotal2 + '</td>' +
+                '</tr>';
+
+            let keys1 = Object.keys(countMap1);
+            let keys2 = Object.keys(countMap2);
+            for(let i=0; i<keys1.length; i++) {
+                let match = false;
+                for(let j=0; j<DECK_ORDER.length; j++) { if(DECK_ORDER[j].name === keys1[i]) match=true; }
+                if(!match && unknown.indexOf(keys1[i]) === -1) unknown.push(keys1[i]);
+            }
+            for(let i=0; i<keys2.length; i++) {
+                let match = false;
+                for(let j=0; j<DECK_ORDER.length; j++) { if(DECK_ORDER[j].name === keys2[i]) match=true; }
+                if(!match && unknown.indexOf(keys2[i]) === -1) unknown.push(keys2[i]);
+            }
+            
+            if (unknown.length > 0) {
+                document.getElementById('unknownCards').classList.remove('hidden');
+                let unkStr = [];
+                for(let i=0; i<unknown.length; i++) { unkStr.push('<strong>"' + unknown[i] + '"</strong> (P1: ' + (countMap1[unknown[i]]||0) + ', P2: ' + (countMap2[unknown[i]]||0) + ')'); }
+                document.getElementById('unknownCardsList').innerHTML = unkStr.join(', ');
+            } else {
+                document.getElementById('unknownCards').classList.add('hidden');
+            }
+
+            // Render Turn Log with Cumulative Running Totals
+            let turnHtml = '';
+            let cumulativeStats = {};
+            
+            for(let i=0; i<turnsList.length; i++) {
+                let t = turnsList[i];
+                let pNameStr = t.player;
+                if (!cumulativeStats[pNameStr]) { cumulativeStats[pNameStr] = { dice: 0, dmg: 0 }; }
+                
+                let colorClass = t.player === p1Data.name ? 'text-blue-700' : (t.player === p2Data.name ? 'text-red-700' : 'text-gray-700');
+                
+                let tDice = 0; let tDmg = 0;
+                for(let j=0; j<t.attacks.length; j++) {
+                    tDice += t.attacks[j].diceRolled;
+                    tDmg += t.attacks[j].diceDamage + t.attacks[j].retreatDamage;
+                }
+                
+                cumulativeStats[pNameStr].dice += tDice;
+                cumulativeStats[pNameStr].dmg += tDmg;
+                
+                let tRatio = tDice > 0 ? ((tDmg / tDice) * 100).toFixed(0) + '%' : '-';
+                let cRatio = cumulativeStats[pNameStr].dice > 0 ? ((cumulativeStats[pNameStr].dmg / cumulativeStats[pNameStr].dice) * 100).toFixed(0) + '%' : '-';
+                
+                let dimClass = tDice === 0 ? 'text-gray-400' : 'text-gray-800';
+                let dmgColor = tDmg > 0 ? 'text-green-600' : '';
+                let cDmgColor = cumulativeStats[pNameStr].dmg > 0 ? 'text-green-700' : '';
+                
+                turnHtml += '<tr class="stat-row hover:bg-gray-100 border-b border-gray-100 ' + dimClass + '">' +
+                    '<td class="whitespace-nowrap py-2 pl-4 text-sm font-medium">R' + t.roundDisplay + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-medium">#' + (i + 1) + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm font-bold ' + colorClass + '">' + t.player + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm">' + t.card + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold">' + tDice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold ' + dmgColor + '">' + tDmg + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center">' + tRatio + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold border-l border-gray-200 bg-gray-50/50">' + cumulativeStats[pNameStr].dice + '</td>' +
+                    '<td class="whitespace-nowrap py-2 px-2 text-sm text-center font-semibold bg-gray-50/50 ' + cDmgColor + '">' + cumulativeStats[pNameStr].dmg + '</td>' +
+                    '<td class="whitespace-nowrap py-2 pr-4 text-sm text-center bg-gray-50/50">' + cRatio + '</td>' +
+                '</tr>';
+            }
+            document.getElementById('turnLogBody').innerHTML = turnHtml;
+        }
+    </script>
+</body>
+</html>
